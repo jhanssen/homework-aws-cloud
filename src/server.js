@@ -19,6 +19,19 @@ const app = express();
 
 const expressWs = require('express-ws')(app);
 
+const Types = {
+    Dimmer: 0,
+    Light: 1,
+    Fan: 2,
+    Thermostat: 3,
+    Clapper: 4,
+    RGBWLed: 5,
+    Sensor: 6,
+    GarageDoor: 7,
+    Lock: 8,
+    Unknown: 99
+};
+
 const root = path.resolve(fs.realpathSync(__filename), '../..') + path.sep;
 //console.log(root);
 const config = jsondb.readFileSync(root + 'config.json');
@@ -36,6 +49,8 @@ if (!config.secret) {
 }
 
 passwordless.init(new MongoStore(config.mongo));
+
+let stateSerial = 0;
 
 var mongodb, emailServer;
 mongo.connect(config.mongo, (err, db) => {
@@ -106,6 +121,47 @@ app.oauth = oauthserver({
 //app.use(app.oauth.authorize());
 
 var wsUser = Object.create(null);
+
+function sendToUser(user, req)
+{
+    console.log("sendtouser", user, req);
+    if (user in wsUser) {
+        return wsUser[user].state.request(req);
+    }
+    console.log("user not present");
+    return Promise.reject(`User ${user} not found`);
+}
+
+function getDevices(user, cb)
+{
+    sendToUser(user, { type: "devices" }).then((hwresponse) => {
+        let devs = Object.create(null);
+        let rem = hwresponse.length;
+
+        for (var i = 0; i < hwresponse.length; ++i) {
+            let uuid = hwresponse[i].uuid;
+
+            devs[uuid] = hwresponse[i];
+            devs[uuid].values = Object.create(null);
+            sendToUser(user, { type: "values", devuuid: uuid }).then(function(hwresponse) {
+                if (hwresponse instanceof Array) {
+                    for (var i = 0; i < hwresponse.length; ++i) {
+                        var val = hwresponse[i];
+                        devs[uuid].values[val.name] = val;
+                    }
+                }
+                if (!--rem) {
+                    wsUser[user].devices = devs;
+                    if (cb)
+                        cb(devs);
+                }
+            });
+        }
+    }).catch((err) => {
+        console.error("sendtouser exception", err);
+        cb(null);
+    });
+}
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
@@ -250,24 +306,36 @@ app.get('/oauth/login', function (req, res, next) {
 app.post('/oauth/login', function (req, res, next) {
     // Insert your own login mechanism
     // see if we find ourselves in the db
-    mongodb.collection("hwusers").findOne({ email: req.body.email }, (err, doc) => {
+    let email = req.body.email;
+    let loginStr = "<html><body><form method='POST'>" +
+            "email: <input type='text' name='email'><br>" +
+            `<input type='hidden' name='redirect' value='${req.body.redirect}'>` +
+            `<input type='hidden' name='client_id' value='${req.body.client_id}'>` +
+            `<input type='hidden' name='redirect_uri' value='${req.body.redirect_uri}'>` +
+            `<input type='hidden' name='state' value='${req.body.state}'>` +
+            "</form></body></html>";
+    if (!email || typeof email !== "string" || !email.length) {
+        res.send(loginStr);
+        return;
+    }
+    mongodb.collection("hwusers").findOne({ email: email }, (err, doc) => {
         if (doc) {
             if ("token" in doc && doc.token == req.body.token) {
                 // Successful logins should send the user back to the /oauth/authorise
                 // with the client_id and redirect_uri (you could store these in the session)
-                mongodb.collection("hwusers").update({ email: req.body.email }, { $unset: { token: "" } });
+                mongodb.collection("hwusers").update({ email: email }, { $unset: { token: "" } });
 
-                req.session.user = { id: req.body.email };
+                req.session.user = { id: email };
                 res.redirect((req.body.redirect || '/home') + '?client_id=' +
                              req.body.client_id + '&redirect_uri=' + req.body.redirect_uri + '&state=' + req.body.state);
             } else {
                 // generate random token and send it to the user, then wait for the user to enter the token
                 const token = crypto.randomBytes(4).toString('hex');
-                mongodb.collection("hwusers").update({ email: req.body.email }, { $set: { token: token } }, (err, doc) => {
+                mongodb.collection("hwusers").update({ email: email }, { $set: { token: token } }, (err, doc) => {
                     var str =
                             "<html><body><form method='POST'>" +
                             "token: <input type='text' name='token'><br>" +
-                            `<input type='hidden' name='email' value='${req.body.email}'><br>` +
+                            `<input type='hidden' name='email' value='${email}'><br>` +
                             `<input type='hidden' name='redirect' value='${req.body.redirect}'>` +
                             `<input type='hidden' name='client_id' value='${req.body.client_id}'>` +
                             `<input type='hidden' name='redirect_uri' value='${req.body.redirect_uri}'>` +
@@ -278,52 +346,270 @@ app.post('/oauth/login', function (req, res, next) {
                     emailServer.send({
                         text: `token: ${token}`,
                         from: "admin@homework.software",
-                        to: req.body.email,
+                        to: email,
                         subject: "homework token"
                     }, (err, msg) => {
-                        console.log(`email with token ${token} sent to ${req.body.email}`, err, msg);
+                        console.log(`email with token ${token} sent to ${email}`, err, msg);
                     });
                 });
             };
         } else {
-            var str = "<html><body><form method='POST'>" +
-                    "email: <input type='text' name='email'><br>" +
-                    `<input type='hidden' name='redirect' value='${req.body.redirect}'>` +
-                    `<input type='hidden' name='client_id' value='${req.body.client_id}'>` +
-                    `<input type='hidden' name='redirect_uri' value='${req.body.redirect_uri}'>` +
-                    `<input type='hidden' name='state' value='${req.body.state}'>` +
-                    "</form></body></html>";
-            res.send(str);
+            res.send(loginStr);
         }
     });
 });
 
-app.get('/secret', app.oauth.authorise(), function (req, res) {
-    // Will require a valid access_token
-    res.send('Secret area');
-});
+function makeName(dev)
+{
+    let name = dev.name;
+    if (dev.room)
+        name = dev.room + " " + name;
+    if (dev.floor)
+        name = dev.floor + " " + name;
+    return name;
+}
 
-app.get('/public', function (req, res) {
-    // Does not require an access_token
-    res.send('Public area');
+function makeDimmer(dev)
+{
+    var dimmer = {
+        actions: [
+            "incrementPercentage",
+            "decrementPercentage",
+            "setPercentage",
+            "turnOn",
+            "turnOff"
+        ],
+        additionalApplianceDetails: {},
+        applianceId: dev.uuid,
+        friendlyDescription: "Dimmer",
+        friendlyName: makeName(dev),
+        isReachable: true,
+        manufacturerName: "Homework",
+        modelName: "HomeworkDimmer",
+        version: "1.0"
+    };
+
+    return dimmer;
+}
+
+function setDeviceValue(user, dev, name, value)
+{
+    sendToUser(user, { type: "setValue", devuuid: dev.uuid, valname: name, value: value });
+}
+
+app.post('/oauth/request', (req, res) => {
+    var event = req.body;
+
+    var handlers = {
+        "Alexa.ConnectedHome.Discovery": function() {
+            console.log("hey Alexa.ConnectedHome.Discovery");
+            const token = event.payload.accessToken;
+            mongodb.collection("oauthaccesstokens").findOne({ accessToken: token }, (err, doc) => {
+                if (doc && doc.accessToken == token) {
+                    const user = doc.userId;
+
+                    const discovery = {
+                        "DiscoverAppliancesRequest": (response) => {
+                            getDevices(user, (devs) => {
+                                let appliances = [];
+
+                                for (var uuid in devs) {
+                                    switch (devs[uuid].type) {
+                                    case Types.Dimmer:
+                                        appliances.push(makeDimmer(devs[uuid]));
+                                        break;
+                                    default:
+                                        console.error(`unhandled device type ${uuid} ${devs[uuid].type}`);
+                                        break;
+                                    }
+                                }
+
+                                if (appliances.length > 0) {
+                                    response.payload = {
+                                        discoveredAppliances: appliances
+                                    };
+                                }
+
+                                console.log("sending", JSON.stringify(response));
+                                res.send(JSON.stringify(response));
+                            });
+                        }
+                    };
+
+                    var response = {
+                        header: {
+                            namespace: "Alexa.ConnectedHome.Discovery",
+                            name: "DiscoverAppliancesResponse",
+                            payloadVersion: "2"
+                        },
+                        payload: ""
+                    };
+
+                    if (event.header.name in discovery) {
+                        discovery[event.header.name](response);
+                    } else {
+                        console.error(event.header.name, "is not a valid discovery");
+                        res.send(JSON.stringify(response));
+                    }
+                }
+            });
+
+        },
+        "Alexa.ConnectedHome.Control": function() {
+            const token = event.payload.accessToken;
+            mongodb.collection("oauthaccesstokens").findOne({ accessToken: token }, (err, doc) => {
+                if (doc && doc.accessToken == token) {
+                    const user = doc.userId;
+
+
+                    const deviceId = event.payload.appliance.applianceId;
+                    const messageId = event.header.messageId;
+
+                    var dev;
+                    if (user in wsUser && deviceId in wsUser[user].devices)
+                        dev = wsUser[user].devices[deviceId];
+
+                    const control = {
+                        "TurnOnRequest": (response) => {
+                            response.header.name = "TurnOnConfirmation";
+                            response.payload = { };
+                            console.log(`turning on device ${deviceId} with token ${token}`);
+
+                            switch (dev.type) {
+                            case Types.Dimmer:
+                                setDeviceValue(user, dev, "level", dev.values.level.values.on);
+                                break;
+                            }
+                        },
+                        "TurnOffRequest": (response) => {
+                            response.header.name = "TurnOffConfirmation";
+                            response.payload = { };
+                            console.log(`turning off device ${deviceId} with token ${token}`);
+
+                            switch (dev.type) {
+                            case Types.Dimmer:
+                                setDeviceValue(user, dev, "level", dev.values.level.values.off);
+                                break;
+                            }
+                        }
+                    };
+
+                    var response = {
+                        header: {
+                            namespace: "Alexa.ConnectedHome.Control",
+                            payloadVersion: "2",
+                            messageId: messageId
+                        },
+                        payload: ""
+                    };
+
+                    if (dev && event.header.name in control) {
+                        control[event.header.name](response);
+                    } else {
+                        console.error(event.header.name, "is not a valid control");
+                    }
+
+                    res.send(JSON.stringify(response));
+                } else {
+                }
+            });
+        }
+    };
+
+    console.log("heyevent", event);
+    if (event.header.namespace in handlers) {
+        handlers[event.header.namespace]();
+    } else {
+        console.error("Unknown execute request", JSON.stringify(event));
+        res.send("bad");
+    }
 });
 
 app.ws('/user/websocket', (ws, request) => {
-    var user = request.session.passwordless;
-    if (user in wsUser)
-        wsUser[user].push(ws);
-    else
-        wsUser[user] = [ws];
+    let key = request.headers["x-homework-key"];
+    if (typeof key !== "string" || !key.length) {
+        console.log("no key, we're out");
+        ws.close();
+        return;
+    }
+
+    let serial = stateSerial++;
+    let state = { id: 0, pending: Object.create(null), serial: serial };
+
+    state.request = function(req) {
+        var p = new Promise(function(resolve, reject) {
+            var id = ++state.id;
+            req.id = id;
+            // this.log("sending req", JSON.stringify(req));
+            state.pending[id] = { resolve: resolve, reject: reject };
+            ws.send(JSON.stringify(req));
+        });
+        return p;
+    };
+
     ws.on('close', () => {
-        for (var i = 0; i < wsUser[user].length; ++i) {
-            if (wsUser[user][i] == ws) {
-                delete wsUser[user][i];
-                return;
-            }
+        console.log("ws closed");
+        if (!state.user)
+            return;
+        if (wsUser[state.user].state.serial != serial)
+            return;
+
+        delete wsUser[state.user];
+        // reject all pending requests
+        for (var p in state.pending) {
+            state.pending[p].reject("socket closed");
         }
+        state = { id: 0, pending: Object.create(null) };
     });
     ws.on('message', (msg) => {
-        console.log(`message from ${user}: ${msg}`);
+        if (state.user) {
+            console.log(`message from ${state.user}: ${msg}`);
+
+            var json;
+            try {
+                json = JSON.parse(msg);
+            } catch (e) {
+                console.error("unable to parse json", msg, e);
+                return;
+            }
+
+            if ("id" in json) {
+                if (json.id in state.pending) {
+                    let pending = state.pending[json.id];
+                    delete state.pending[json.id];
+
+                    if ("result" in json) {
+                        pending.resolve(json.result);
+                    } else if ("error" in json) {
+                        pending.reject(json.error);
+                    } else {
+                        pending.reject("no result or error in json:", JSON.stringify(json));
+                    }
+                } else {
+                    console.error(`got message id ${json.id} but not in pending`);
+                }
+            } else {
+                console.error("got message with no id:", JSON.stringify(json));
+            }
+        } else {
+            console.log("we're out");
+            ws.close();
+            return;
+        }
+    });
+
+    // look up the key
+    mongodb.collection("hwusers").findOne({ key: key }, (err, doc) => {
+        if (!doc) {
+            console.log("closing because of no doc");
+            ws.close();
+            return;
+        }
+        state.user = doc.email;
+        wsUser[doc.email] = { state: state, ws: ws };
+        getDevices(doc.email);
+
+        ws.send(JSON.stringify({ type: "cloud", cloud: "login", user: state.user }));
     });
 });
 
