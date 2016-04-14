@@ -392,6 +392,26 @@ function makeDimmer(dev)
     return dimmer;
 }
 
+function makeLight(dev)
+{
+    var dimmer = {
+        actions: [
+            "turnOn",
+            "turnOff"
+        ],
+        additionalApplianceDetails: {},
+        applianceId: dev.uuid,
+        friendlyDescription: "Light",
+        friendlyName: makeName(dev),
+        isReachable: true,
+        manufacturerName: "Homework",
+        modelName: "HomeworkLight",
+        version: "1.0"
+    };
+
+    return dimmer;
+}
+
 function setDeviceValue(user, dev, name, value)
 {
     sendToUser(user, { type: "setValue", devuuid: dev.uuid, valname: name, value: value });
@@ -422,6 +442,9 @@ app.post('/oauth/request', (req, res) => {
                                     switch (devs[uuid].type) {
                                     case Types.Dimmer:
                                         appliances.push(makeDimmer(devs[uuid]));
+                                        break;
+                                    case Types.Light:
+                                        appliances.push(makeLight(devs[uuid]));
                                         break;
                                     default:
                                         console.error(`unhandled device type ${uuid} ${devs[uuid].type}`);
@@ -484,6 +507,9 @@ app.post('/oauth/request', (req, res) => {
                             case Types.Dimmer:
                                 setDeviceValue(user, dev, "level", dev.values.level.values.on);
                                 break;
+                            case Types.Light:
+                                setDeviceValue(user, dev, "value", 1);
+                                break;
                             }
                         },
                         "TurnOffRequest": (response) => {
@@ -494,6 +520,9 @@ app.post('/oauth/request', (req, res) => {
                             switch (dev.type) {
                             case Types.Dimmer:
                                 setDeviceValue(user, dev, "level", dev.values.level.values.off);
+                                break;
+                            case Types.Light:
+                                setDeviceValue(user, dev, "value", 0);
                                 break;
                             }
                         },
@@ -626,6 +655,8 @@ app.ws('/user/websocket', (ws, request) => {
                 } else {
                     console.error(`got message id ${json.id} but not in pending`);
                 }
+            } else if ("type" in json && json.type == "ready") {
+                getDevices(state.user);
             } else {
                 console.error("got message with no id:", JSON.stringify(json));
             }
@@ -645,7 +676,6 @@ app.ws('/user/websocket', (ws, request) => {
         }
         state.user = doc.email;
         wsUser[doc.email] = { state: state, ws: ws };
-        getDevices(doc.email);
 
         ws.send(JSON.stringify({ type: "cloud", cloud: "login", user: state.user }));
     });
