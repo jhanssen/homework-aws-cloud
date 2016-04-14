@@ -592,6 +592,13 @@ app.post('/oauth/request', (req, res) => {
     }
 });
 
+app.all(['/user/site', '/user/site*'], (req, res) => {
+    let path = req.url.substr(10);
+    if (path == "")
+        path = "/";
+    res.send(path);
+});
+
 app.ws('/user/websocket', (ws, request) => {
     let key = request.headers["x-homework-key"];
     if (typeof key !== "string" || !key.length) {
