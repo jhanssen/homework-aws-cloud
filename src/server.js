@@ -397,6 +397,11 @@ function setDeviceValue(user, dev, name, value)
     sendToUser(user, { type: "setValue", devuuid: dev.uuid, valname: name, value: value });
 }
 
+function addDeviceValue(user, dev, name, delta)
+{
+    sendToUser(user, { type: "addValue", devuuid: dev.uuid, valname: name, delta: delta });
+}
+
 app.post('/oauth/request', (req, res) => {
     var event = req.body;
 
@@ -491,6 +496,39 @@ app.post('/oauth/request', (req, res) => {
                                 setDeviceValue(user, dev, "level", dev.values.level.values.off);
                                 break;
                             }
+                        },
+                        "SetPercentageRequest": (response, event) => {
+                            response.header.name = "SetPercentageConfirmation";
+                            response.payload = { };
+                            let perc = event.percentageState.value;
+
+                            switch (dev.type) {
+                            case Types.Dimmer:
+                                setDeviceValue(user, dev, "level", perc);
+                                break;
+                            }
+                        },
+                        "IncrementPercentageRequest": (response, event) => {
+                            response.header.name = "IncrementPercentageConfirmation";
+                            response.payload = { };
+                            let delta = event.deltaPercentage.value;
+
+                            switch (dev.type) {
+                            case Types.Dimmer:
+                                addDeviceValue(user, dev, "level", delta);
+                                break;
+                            }
+                        },
+                        "DecrementPercentageRequest": (response, event) => {
+                            response.header.name = "DecrementPercentageConfirmation";
+                            response.payload = { };
+                            let delta = event.deltaPercentage.value;
+
+                            switch (dev.type) {
+                            case Types.Dimmer:
+                                addDeviceValue(user, dev, "level", -delta);
+                                break;
+                            }
                         }
                     };
 
@@ -504,7 +542,7 @@ app.post('/oauth/request', (req, res) => {
                     };
 
                     if (dev && event.header.name in control) {
-                        control[event.header.name](response);
+                        control[event.header.name](response, event.payload);
                     } else {
                         console.error(event.header.name, "is not a valid control");
                     }
