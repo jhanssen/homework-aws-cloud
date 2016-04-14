@@ -82,7 +82,7 @@ mongo.connect(config.mongo, (err, db) => {
                         function(tokenToSend, uidToSend, recipient, callback, req) {
                             var host = config.db.email.host;
                             emailServer.send({
-                                text:    'Hello!\nAccess your account here: http://'
+                                text:    'Hello!\nAccess your account here: https://'
                                     + host + '/user/accept?token=' + tokenToSend + '&uid='
                                     + encodeURIComponent(uidToSend),
                                 from:    config.db.email.from,
