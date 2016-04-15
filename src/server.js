@@ -474,7 +474,7 @@ app.post('/oauth/request', (req, res) => {
                                     };
                                 }
 
-                                console.log("sending", JSON.stringify(response));
+                                //console.log("sending", JSON.stringify(response));
                                 res.send(JSON.stringify(response));
                             });
                         }
@@ -599,7 +599,7 @@ app.post('/oauth/request', (req, res) => {
         }
     };
 
-    console.log("heyevent", event);
+    //console.log("heyevent", event);
     if (event.header.namespace in handlers) {
         handlers[event.header.namespace]();
     } else {
@@ -633,7 +633,7 @@ app.ws('/user/site', (ws, request) => {
     if (wsUser[user].ready) {
         ws.send(JSON.stringify({ type: "ready", ready: true }));
     }
-    if (!("remote" in wsUser[user]))
+    if (!("remotes" in wsUser[user]))
         wsUser[user].remotes = [ws];
     else
         wsUser[user].remotes.push(ws);
@@ -646,7 +646,7 @@ app.ws('/user/site', (ws, request) => {
         }
     });
     ws.on("message", (data) => {
-        console.log("got request", data);
+        //console.log("got request", data);
         var json;
         try {
             json = JSON.parse(data);
@@ -656,9 +656,9 @@ app.ws('/user/site', (ws, request) => {
         if ("id" in json) {
             json.wsid = json.id;
         }
-        console.log("sending to", user, JSON.stringify(json));
+        //console.log("sending to", user, JSON.stringify(json));
         sendToUser(user, json).then((resp) => {
-            console.log("got response back", JSON.stringify(resp));
+            //console.log("got response back", JSON.stringify(resp));
             ws.send(JSON.stringify({ id: resp.id, result: resp.data }));
         }).catch((resp) => {
             ws.send(JSON.stringify({ id: resp.id, error: resp.data }));
@@ -696,6 +696,7 @@ app.ws('/user/websocket', (ws, request) => {
             return;
 
         delete wsUser[state.user];
+
         // reject all pending requests
         for (var p in state.pending) {
             state.pending[p].reject({ data: "socket closed" });
