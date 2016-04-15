@@ -122,6 +122,19 @@ app.oauth = oauthserver({
 
 var wsUser = Object.create(null);
 
+function sendToAll(user, req)
+{
+    if (user in wsUser) {
+        const data = JSON.stringify(req);
+        const rs = wsUser[user].remotes;
+        if (rs instanceof Array) {
+            for (var i = 0; i < rs.length; ++i) {
+                rs[i].send(data);
+            }
+        }
+    }
+}
+
 function sendToUser(user, req)
 {
     console.log("sendtouser", user, req);
@@ -620,6 +633,18 @@ app.ws('/user/site', (ws, request) => {
     if (wsUser[user].ready) {
         ws.send(JSON.stringify({ type: "ready", ready: true }));
     }
+    if (!("remote" in wsUser[user]))
+        wsUser[user].remotes = [ws];
+    else
+        wsUser[user].remotes.push(ws);
+    ws.on("close", () => {
+        for (var i = 0; i < wsUser[user].remotes.length; ++i) {
+            if (wsUser[user].remotes[i] == ws) {
+                wsUser[user].remotes.splice(i, 1);
+                break;
+            }
+        }
+    });
     ws.on("message", (data) => {
         console.log("got request", data);
         var json;
@@ -708,7 +733,8 @@ app.ws('/user/websocket', (ws, request) => {
                 wsUser[state.user].ready = true;
                 getDevices(state.user);
             } else {
-                console.error("got message with no id:", JSON.stringify(json));
+                //console.error("got message with no id:", JSON.stringify(json));
+                sendToAll(state.user, json);
             }
         } else {
             console.log("we're out");
