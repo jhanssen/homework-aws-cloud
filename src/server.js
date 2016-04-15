@@ -607,7 +607,7 @@ app.get(['/user/site', '/user/site*'], passwordless.restricted({ failureRedirect
         data = data.data;
         res.set(data.statusCode);
         res.set(data.headers);
-        res.send(data.body);
+        res.send(data.body, data.binary ? "binary" : "utf8");
     });
 });
 
