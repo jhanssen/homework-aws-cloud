@@ -129,12 +129,13 @@ function sendToUser(user, req)
         return wsUser[user].state.request(req);
     }
     console.log("user not present");
-    return Promise.reject(`User ${user} not found`);
+    return Promise.reject({ data: `User ${user} not found` });
 }
 
 function getDevices(user, cb)
 {
     sendToUser(user, { type: "devices" }).then((hwresponse) => {
+        hwresponse = hwresponse.data;
         let devs = Object.create(null);
         let rem = hwresponse.length;
 
@@ -144,6 +145,7 @@ function getDevices(user, cb)
             devs[uuid] = hwresponse[i];
             devs[uuid].values = Object.create(null);
             sendToUser(user, { type: "values", devuuid: uuid }).then(function(hwresponse) {
+                hwresponse = hwresponse.data;
                 if (hwresponse instanceof Array) {
                     for (var i = 0; i < hwresponse.length; ++i) {
                         var val = hwresponse[i];
@@ -220,7 +222,8 @@ app.post('/user/auth', passwordless.requestToken(function(user, delivery, callba
 
 app.get('/user/index', passwordless.restricted({ failureRedirect: '/' }), function(req, res) {
     var str = `Hello ${req.session.passwordless}<br>` +
-            '<a href="/user/generate">Generate key</a>';
+            '<a href="/user/generate">Generate key</a><br>' +
+            '<a href="/user/site/">Site</a>';
     res.send(str);
 });
 
@@ -592,11 +595,50 @@ app.post('/oauth/request', (req, res) => {
     }
 });
 
-app.all(['/user/site', '/user/site*'], (req, res) => {
+app.get(['/user/site', '/user/site*'], passwordless.restricted({ failureRedirect: '/' }), (req, res) => {
+    if (req.url == "/user/site") {
+        res.redirect('/user/site/');
+        return;
+    }
     let path = req.url.substr(10);
     if (path == "")
         path = "/";
-    res.send(path);
+    sendToUser(req.session.passwordless, { "type": "web", path: path }).then((data) => {
+        data = data.data;
+        res.set(data.statusCode);
+        res.set(data.headers);
+        res.send(data.body);
+    });
+});
+
+app.ws('/user/site', (ws, request) => {
+    let user = request.session.passwordless;
+    if (!user) {
+        ws.close();
+        return;
+    }
+    if (wsUser[user].ready) {
+        ws.send(JSON.stringify({ type: "ready", ready: true }));
+    }
+    ws.on("message", (data) => {
+        console.log("got request", data);
+        var json;
+        try {
+            json = JSON.parse(data);
+        } catch (e) {
+            return;
+        }
+        if ("id" in json) {
+            json.wsid = json.id;
+        }
+        console.log("sending to", user, JSON.stringify(json));
+        sendToUser(user, json).then((resp) => {
+            console.log("got response back", JSON.stringify(resp));
+            ws.send(JSON.stringify({ id: resp.id, result: resp.data }));
+        }).catch((resp) => {
+            ws.send(JSON.stringify({ id: resp.id, error: resp.data }));
+        });
+    });
 });
 
 app.ws('/user/websocket', (ws, request) => {
@@ -631,13 +673,13 @@ app.ws('/user/websocket', (ws, request) => {
         delete wsUser[state.user];
         // reject all pending requests
         for (var p in state.pending) {
-            state.pending[p].reject("socket closed");
+            state.pending[p].reject({ data: "socket closed" });
         }
         state = { id: 0, pending: Object.create(null) };
     });
     ws.on('message', (msg) => {
         if (state.user) {
-            console.log(`message from ${state.user}: ${msg}`);
+            //console.log(`message from ${state.user}: ${msg}`);
 
             var json;
             try {
@@ -653,16 +695,17 @@ app.ws('/user/websocket', (ws, request) => {
                     delete state.pending[json.id];
 
                     if ("result" in json) {
-                        pending.resolve(json.result);
+                        pending.resolve({ data: json.result, id: json.wsid });
                     } else if ("error" in json) {
-                        pending.reject(json.error);
+                        pending.reject({ data: json.error, id: json.wsid });
                     } else {
-                        pending.reject("no result or error in json:", JSON.stringify(json));
+                        pending.reject({ data: "no result or error in json: " + JSON.stringify(json), id: json.wsid });
                     }
                 } else {
                     console.error(`got message id ${json.id} but not in pending`);
                 }
             } else if ("type" in json && json.type == "ready") {
+                wsUser[state.user].ready = true;
                 getDevices(state.user);
             } else {
                 console.error("got message with no id:", JSON.stringify(json));
