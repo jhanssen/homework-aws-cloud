@@ -732,6 +732,7 @@ app.ws('/user/websocket', (ws, request) => {
                 }
             } else if ("type" in json && json.type == "ready") {
                 wsUser[state.user].ready = true;
+                sendToAll(state.user, { type: "ready", ready: true });
                 getDevices(state.user);
             } else {
                 //console.error("got message with no id:", JSON.stringify(json));
