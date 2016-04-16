@@ -608,6 +608,34 @@ app.post('/oauth/request', (req, res) => {
     }
 });
 
+app.get('/user/create', (req, res) => {
+    var str = "<html><body><form method='POST'>" +
+            "email: <input type='text' name='email'><br>" +
+            "key: <input type='password' name='key'>" +
+            "</form></body></html>";
+    res.send(str);
+});
+
+app.post('/user/create', (req, res) => {
+    let key = config.db.creation;
+    if (req.body.key !== key) {
+        res.redirect('/');
+    } else {
+        let email = req.body.email;
+        if (typeof email !== "string" || email.length == 0) {
+            res.send("no email entered");
+        } else {
+            mongodb.collection("hwusers").insert({ email: email }, (err, result) => {
+                if (err) {
+                    res.send("error inserting user");
+                } else {
+                    res.redirect('/');
+                }
+            });
+        }
+    }
+});
+
 app.get(['/user/site', '/user/site*'], passwordless.restricted({ failureRedirect: '/' }), (req, res) => {
     if (req.url == "/user/site") {
         res.redirect('/user/site/');
