@@ -611,7 +611,8 @@ app.post('/oauth/request', (req, res) => {
 app.get('/user/create', (req, res) => {
     var str = "<html><body><form method='POST'>" +
             "email: <input type='text' name='email'><br>" +
-            "key: <input type='password' name='key'>" +
+            "key: <input type='password' name='key'><br>" +
+            "<input type='submit' value='Create'>" +
             "</form></body></html>";
     res.send(str);
 });
