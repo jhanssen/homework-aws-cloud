@@ -81,6 +81,7 @@ mongo.connect(config.mongo, (err, db) => {
                     passwordless.addDelivery(
                         function(tokenToSend, uidToSend, recipient, callback, req) {
                             var host = config.db.email.host;
+                            console.log("about to send email to", recipient);
                             emailServer.send({
                                 text:    'Hello!\nAccess your account here: https://'
                                     + host + '/user/accept?token=' + tokenToSend + '&uid='
@@ -216,11 +217,14 @@ app.get('/user/auth', function(req, res) {
 
 app.post('/user/auth', passwordless.requestToken(function(user, delivery, callback, req) {
     let email = req.body.email;
+    console.log("authing", email);
     if (!email || typeof email !== "string" || !email.length) {
         callback(null, null);
         return;
     }
+    console.log("looking up user");
     mongodb.collection("hwusers").findOne({ email: email }, (err, doc) => {
+        console.log("got user from db");
         if (doc && doc.email == email) {
             // we're good
             callback(null, doc.email);
