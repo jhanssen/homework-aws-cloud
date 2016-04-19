@@ -412,7 +412,7 @@ function makeDimmer(dev)
     return dimmer;
 }
 
-function makeLight(dev)
+function makeSwitch(dev)
 {
     var dimmer = {
         actions: [
@@ -425,11 +425,31 @@ function makeLight(dev)
         friendlyName: makeName(dev),
         isReachable: true,
         manufacturerName: "Homework",
-        modelName: "HomeworkLight",
+        modelName: "HomeworkSwitch",
         version: "1.0"
     };
 
     return dimmer;
+}
+
+function makeThermostat(dev)
+{
+    var thermostat = {
+        actions: [
+            "incrementTargetTemperature",
+            "decrementTargetTemperature",
+            "setTargetTemperature"
+        ],
+        additionalApplianceDetails: {},
+        applianceId: dev.uuid,
+        friendlyDescription: dev.name,
+        friendlyName: makeName(dev),
+        isReachable: true,
+        manufacturerName: "Homework",
+        modelName: "HomeworkThermostat",
+        version: "1.0"
+    };
+    return thermostat;
 }
 
 function setDeviceValue(user, dev, name, value)
@@ -441,6 +461,37 @@ function addDeviceValue(user, dev, name, delta)
 {
     sendToUser(user, { type: "addValue", devuuid: dev.uuid, valname: name, delta: delta });
 }
+
+const hwconvert = {
+    fromHWTemperatureMode: function(mode) {
+        switch (mode) {
+        case "Heat":
+            return "HEAT";
+        case "Cool":
+            return "COOL";
+        case "Auto":
+            return "AUTO";
+        }
+        return undefined;
+    },
+    toHWTemperatureMode: function(mode) {
+        switch (mode) {
+        case "HEAT":
+            return "Heat";
+        case "COOL":
+            return "Cool";
+        case "AUTO":
+            return "Auto";
+        }
+        return undefined;
+    },
+    ftoc: function(f) {
+        return (f - 32) * 5/9;
+    },
+    ctof: function(c) {
+        return (c * (9/5)) + 32;
+    }
+};
 
 app.post('/oauth/request', (req, res) => {
     var event = req.body;
@@ -464,7 +515,11 @@ app.post('/oauth/request', (req, res) => {
                                         appliances.push(makeDimmer(devs[uuid]));
                                         break;
                                     case Types.Light:
-                                        appliances.push(makeLight(devs[uuid]));
+                                    case Types.Fan:
+                                        appliances.push(makeSwitch(devs[uuid]));
+                                        break;
+                                    case Types.Thermostat:
+                                        appliances.push(makeThermostat(devs[uuid]));
                                         break;
                                     default:
                                         console.error(`unhandled device type ${uuid} ${devs[uuid].type}`);
@@ -528,9 +583,11 @@ app.post('/oauth/request', (req, res) => {
                                 setDeviceValue(user, dev, "level", dev.values.level.values.on);
                                 break;
                             case Types.Light:
+                            case Types.Fan:
                                 setDeviceValue(user, dev, "value", 1);
                                 break;
                             }
+                            return true;
                         },
                         "TurnOffRequest": (response) => {
                             response.header.name = "TurnOffConfirmation";
@@ -542,9 +599,11 @@ app.post('/oauth/request', (req, res) => {
                                 setDeviceValue(user, dev, "level", dev.values.level.values.off);
                                 break;
                             case Types.Light:
+                            case Types.Fan:
                                 setDeviceValue(user, dev, "value", 0);
                                 break;
                             }
+                            return true;
                         },
                         "SetPercentageRequest": (response, event) => {
                             response.header.name = "SetPercentageConfirmation";
@@ -556,6 +615,7 @@ app.post('/oauth/request', (req, res) => {
                                 setDeviceValue(user, dev, "level", perc);
                                 break;
                             }
+                            return true;
                         },
                         "IncrementPercentageRequest": (response, event) => {
                             response.header.name = "IncrementPercentageConfirmation";
@@ -567,6 +627,7 @@ app.post('/oauth/request', (req, res) => {
                                 addDeviceValue(user, dev, "level", delta);
                                 break;
                             }
+                            return true;
                         },
                         "DecrementPercentageRequest": (response, event) => {
                             response.header.name = "DecrementPercentageConfirmation";
@@ -578,6 +639,181 @@ app.post('/oauth/request', (req, res) => {
                                 addDeviceValue(user, dev, "level", -delta);
                                 break;
                             }
+                            return true;
+                        },
+
+                        "SetTargetTemperatureRequest": (response, event) => {
+                            response.header.name = "SetTargetTemperatureConfirmation";
+                            sendToUser(user, { type: "values", devuuid: deviceId }).then(function(hwresponse) {
+                                hwresponse = hwresponse.data;
+                                if (hwresponse instanceof Array) {
+                                    var mode, cooling, heating;
+
+                                    for (var i = 0; i < hwresponse.length; ++i) {
+                                        var val = hwresponse[i];
+                                        switch (true) {
+                                        case /^Mode$/.test(val.name):
+                                            mode = val;
+                                            break;
+                                        case /^Cooling.*/.test(val.name):
+                                            cooling = val;
+                                            break;
+                                        case /^Heating.*/.test(val.name):
+                                            heating = val;
+                                            break;
+                                        }
+                                    }
+
+                                    if (mode === undefined || cooling === undefined || heating === undefined) {
+                                        console.error(`temperature reply failure, mode '${mode}' cooling '${cooling}' heating '${heating}'`);
+                                        response.payload = {};
+                                        res.send(JSON.stringify(response));
+                                    } else {
+                                        let temp = event.targetTemperature.value;
+                                        let tval = mode.raw == "Heat" ? heating : cooling;
+
+                                        response.payload = {
+                                            targetTemperature: {
+                                                value: temp
+                                            },
+                                            temperatureMode: {
+                                                value: hwconvert.fromHWTemperatureMode(mode.raw)
+                                            },
+                                            previousState: {
+                                                targetTemperature: {
+                                                    value: tval.units == "F" ? hwconvert.ftoc(tval.raw) : tval.raw
+                                                },
+                                                temperatureMode: {
+                                                    value: hwconvert.fromHWTemperatureMode(mode.raw)
+                                                }
+                                            }
+                                        };
+
+                                        if (tval.units == "F")
+                                            temp = hwconvert.ctof(temp);
+                                        setDeviceValue(user, dev, tval.name, temp);
+
+                                        res.send(JSON.stringify(response));
+                                    }
+                                }
+                            });
+                            return false;
+                        },
+                        "IncrementTargetTemperatureRequest": (response, event) => {
+                            response.header.name = "IncrementTargetTemperatureConfirmation";
+                            sendToUser(user, { type: "values", devuuid: deviceId }).then(function(hwresponse) {
+                                hwresponse = hwresponse.data;
+                                if (hwresponse instanceof Array) {
+                                    var mode, cooling, heating;
+
+                                    for (var i = 0; i < hwresponse.length; ++i) {
+                                        var val = hwresponse[i];
+                                        switch (true) {
+                                        case /^Mode$/.test(val.name):
+                                            mode = val;
+                                            break;
+                                        case /^Cooling.*/.test(val.name):
+                                            cooling = val;
+                                            break;
+                                        case /^Heating.*/.test(val.name):
+                                            heating = val;
+                                            break;
+                                        }
+                                    }
+
+                                    if (mode === undefined || cooling === undefined || heating === undefined) {
+                                        console.error(`temperature reply failure, mode '${mode}' cooling '${cooling}' heating '${heating}'`);
+                                        response.payload = {};
+                                        res.send(JSON.stringify(response));
+                                    } else {
+                                        let delta = event.deltaTemperature.value;
+                                        let tval = mode.raw == "Heat" ? heating : cooling;
+                                        let newtemp = (tval.units == "F" ? hwconvert.ftoc(tval.raw) : tval.raw) + delta;
+
+                                        response.payload = {
+                                            targetTemperature: {
+                                                value: newtemp
+                                            },
+                                            temperatureMode: {
+                                                value: hwconvert.fromHWTemperatureMode(mode.raw)
+                                            },
+                                            previousState: {
+                                                targetTemperature: {
+                                                    value: tval.units == "F" ? hwconvert.ftoc(tval.raw) : tval.raw
+                                                },
+                                                temperatureMode: {
+                                                    value: hwconvert.fromHWTemperatureMode(mode.raw)
+                                                }
+                                            }
+                                        };
+
+                                        if (tval.units == "F")
+                                            newtemp = hwconvert.ctof(newtemp);
+                                        setDeviceValue(user, dev, tval.name, newtemp);
+
+                                        res.send(JSON.stringify(response));
+                                    }
+                                }
+                            });
+                            return false;
+                        },
+                        "DecrementTargetTemperatureRequest": (response, event) => {
+                            response.header.name = "DecrementTargetTemperatureConfirmation";
+                            sendToUser(user, { type: "values", devuuid: deviceId }).then(function(hwresponse) {
+                                hwresponse = hwresponse.data;
+                                if (hwresponse instanceof Array) {
+                                    var mode, cooling, heating;
+
+                                    for (var i = 0; i < hwresponse.length; ++i) {
+                                        var val = hwresponse[i];
+                                        switch (true) {
+                                        case /^Mode$/.test(val.name):
+                                            mode = val;
+                                            break;
+                                        case /^Cooling.*/.test(val.name):
+                                            cooling = val;
+                                            break;
+                                        case /^Heating.*/.test(val.name):
+                                            heating = val;
+                                            break;
+                                        }
+                                    }
+
+                                    if (mode === undefined || cooling === undefined || heating === undefined) {
+                                        console.error(`temperature reply failure, mode '${mode}' cooling '${cooling}' heating '${heating}'`);
+                                        response.payload = {};
+                                        res.send(JSON.stringify(response));
+                                    } else {
+                                        let delta = event.deltaTemperature.value;
+                                        let tval = mode.raw == "Heat" ? heating : cooling;
+                                        let newtemp = (tval.units == "F" ? hwconvert.ftoc(tval.raw) : tval.raw) - delta;
+
+                                        response.payload = {
+                                            targetTemperature: {
+                                                value: newtemp
+                                            },
+                                            temperatureMode: {
+                                                value: hwconvert.fromHWTemperatureMode(mode.raw)
+                                            },
+                                            previousState: {
+                                                targetTemperature: {
+                                                    value: tval.units == "F" ? hwconvert.ftoc(tval.raw) : tval.raw
+                                                },
+                                                temperatureMode: {
+                                                    value: hwconvert.fromHWTemperatureMode(mode.raw)
+                                                }
+                                            }
+                                        };
+
+                                        if (tval.units == "F")
+                                            newtemp = hwconvert.ctof(newtemp);
+                                        setDeviceValue(user, dev, tval.name, newtemp);
+
+                                        res.send(JSON.stringify(response));
+                                    }
+                                }
+                            });
+                            return false;
                         }
                     };
 
@@ -590,13 +826,16 @@ app.post('/oauth/request', (req, res) => {
                         payload: ""
                     };
 
+                    var send;
                     if (dev && event.header.name in control) {
-                        control[event.header.name](response, event.payload);
+                        send = control[event.header.name](response, event.payload);
                     } else {
+                        send = true;
                         console.error(event.header.name, "is not a valid control");
                     }
 
-                    res.send(JSON.stringify(response));
+                    if (send)
+                        res.send(JSON.stringify(response));
                 } else {
                 }
             });
