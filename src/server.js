@@ -470,6 +470,7 @@ const hwconvert = {
         case "Cool":
             return "COOL";
         case "Auto":
+        case "Off":
             return "AUTO";
         }
         return undefined;
