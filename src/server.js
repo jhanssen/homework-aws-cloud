@@ -643,6 +643,7 @@ app.post('/oauth/request', (req, res) => {
                         },
 
                         "SetTargetTemperatureRequest": (response, event) => {
+                            console.log("settemp", deviceId);
                             response.header.name = "SetTargetTemperatureConfirmation";
                             sendToUser(user, { type: "values", devuuid: deviceId }).then(function(hwresponse) {
                                 hwresponse = hwresponse.data;
@@ -669,8 +670,11 @@ app.post('/oauth/request', (req, res) => {
                                         response.payload = {};
                                         res.send(JSON.stringify(response));
                                     } else {
+                                        console.log("updating temp", mode, cooling, heating);
                                         let temp = event.targetTemperature.value;
                                         let tval = mode.raw == "Heat" ? heating : cooling;
+
+                                        console.log("temp", temp, "tval", JSON.stringify(tval));
 
                                         response.payload = {
                                             targetTemperature: {
