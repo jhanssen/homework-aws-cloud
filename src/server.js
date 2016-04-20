@@ -929,11 +929,16 @@ app.get(['/user/site', '/user/site*'], passwordless.restricted({ failureRedirect
 app.ws('/user/site', (ws, request) => {
     let user = request.session.passwordless;
     if (!user) {
+        console.log("closing because no pwless");
         ws.close();
         return;
     }
     if (wsUser[user].ready) {
-        ws.send(JSON.stringify({ type: "ready", ready: true }));
+        try {
+            ws.send(JSON.stringify({ type: "ready", ready: true }));
+        } catch (e) {
+            console.log(e);
+        }
     }
     if (!("remotes" in wsUser[user]))
         wsUser[user].remotes = [ws];
@@ -961,9 +966,17 @@ app.ws('/user/site', (ws, request) => {
         //console.log("sending to", user, JSON.stringify(json));
         sendToUser(user, json).then((resp) => {
             //console.log("got response back", JSON.stringify(resp));
-            ws.send(JSON.stringify({ id: resp.id, result: resp.data }));
+            try {
+                ws.send(JSON.stringify({ id: resp.id, result: resp.data }));
+            } catch (e) {
+                console.log(e);
+            }
         }).catch((resp) => {
-            ws.send(JSON.stringify({ id: resp.id, error: resp.data }));
+            try {
+                ws.send(JSON.stringify({ id: resp.id, error: resp.data }));
+            } catch (e) {
+                console.log(e);
+            }
         });
     });
 });
@@ -985,7 +998,11 @@ app.ws('/user/websocket', (ws, request) => {
             req.id = id;
             // this.log("sending req", JSON.stringify(req));
             state.pending[id] = { resolve: resolve, reject: reject };
-            ws.send(JSON.stringify(req));
+            try {
+                ws.send(JSON.stringify(req));
+            } catch (e) {
+                console.log(e);
+            }
         });
         return p;
     };
@@ -1057,7 +1074,11 @@ app.ws('/user/websocket', (ws, request) => {
         state.user = doc.email;
         wsUser[doc.email] = { state: state, ws: ws };
 
-        ws.send(JSON.stringify({ type: "cloud", cloud: "login", user: state.user }));
+        try {
+            ws.send(JSON.stringify({ type: "cloud", cloud: "login", user: state.user }));
+        } catch (e) {
+            console.log(e);
+        }
     });
 });
 
