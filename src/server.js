@@ -569,8 +569,12 @@ app.post('/oauth/request', (req, res) => {
                     const messageId = event.header.messageId;
 
                     var dev;
-                    if (user in wsUser && deviceId in wsUser[user].devices)
+                    if (user in wsUser && wsUser[user].devices && deviceId in wsUser[user].devices)
                         dev = wsUser[user].devices[deviceId];
+                    if (!dev) {
+                        console.log(`no devices for ${user}`);
+                        return;
+                    }
 
                     const control = {
                         "TurnOnRequest": (response) => {
@@ -843,7 +847,7 @@ app.post('/oauth/request', (req, res) => {
                     };
 
                     var send;
-                    if (dev && event.header.name in control) {
+                    if (event.header.name in control) {
                         send = control[event.header.name](response, event.payload);
                     } else {
                         send = true;
