@@ -648,7 +648,7 @@ app.post('/oauth/request', (req, res) => {
                             sendToUser(user, { type: "values", devuuid: deviceId }).then(function(hwresponse) {
                                 hwresponse = hwresponse.data;
                                 if (hwresponse instanceof Array) {
-                                    var mode, cooling, heating;
+                                    var mode, cooling, heating, temperature;
 
                                     for (var i = 0; i < hwresponse.length; ++i) {
                                         var val = hwresponse[i];
@@ -662,17 +662,21 @@ app.post('/oauth/request', (req, res) => {
                                         case /^Heating.*/.test(val.name):
                                             heating = val;
                                             break;
+                                        case /^Temperature$/.test(val.name):
+                                            temperature = val;
+                                            break;
                                         }
                                     }
 
-                                    if (mode === undefined || cooling === undefined || heating === undefined) {
-                                        console.error(`temperature reply failure, mode '${mode}' cooling '${cooling}' heating '${heating}'`);
+                                    if (mode === undefined || cooling === undefined || heating === undefined || temperature === undefined) {
+                                        console.error(`temperature reply failure, mode '${mode}' cooling '${cooling}' heating '${heating}' temp '${temperature}'`);
                                         response.payload = {};
                                         res.send(JSON.stringify(response));
                                     } else {
                                         console.log("updating temp", mode, cooling, heating);
                                         let temp = event.targetTemperature.value;
-                                        let tval = mode.raw == "Heat" ? heating : cooling;
+                                        let isHeating = (mode.raw == "Heat");
+                                        let tval = isHeating ? heating : cooling;
 
                                         console.log("temp", temp, "tval", JSON.stringify(tval));
 
@@ -695,8 +699,16 @@ app.post('/oauth/request', (req, res) => {
 
                                         if (tval.units == "F")
                                             temp = hwconvert.ctof(temp);
+                                        if (isHeating && temp < temperature.raw) {
+                                            tval = cooling;
+                                            setDeviceValue(user, dev, "Mode", "Cool");
+                                        } else if (mode.raw == "Cool" && temp > temperature.raw) {
+                                            tval = heating;
+                                            setDeviceValue(user, dev, "Mode", "Heat");
+                                        }
                                         setDeviceValue(user, dev, tval.name, temp);
 
+                                        console.log("sending confirmation", JSON.stringify(response));
                                         res.send(JSON.stringify(response));
                                     }
                                 }
