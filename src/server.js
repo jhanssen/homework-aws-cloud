@@ -835,6 +835,15 @@ app.post('/oauth/request', (req, res) => {
                                 }
                             });
                             return false;
+                        },
+
+                        "HealthCheckRequest": (response) => {
+                            response.header.name = "HealthCheckResponse";
+                            response.payload = {
+                                description: "The system is currently healthy",
+                                isHealthy: true
+                            };
+                            return true;
                         }
                     };
 
