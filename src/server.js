@@ -198,7 +198,7 @@ app.use(session({
 app.use(passwordless.sessionSupport());
 
 app.use(function(req, res, next) {
-    if(req.protocol !== 'https' && req.protocol !== 'wss') {
+    if (req.protocol !== 'https' && req.headers["x-forwarded-proto"] !== 'https') {
         console.log("invalid protocol attempt", req.protocol, req.headers);
         res.status(403).send({message: 'SSL required'});
         return;
