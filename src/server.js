@@ -199,7 +199,7 @@ app.use(passwordless.sessionSupport());
 
 app.use(function(req, res, next) {
     if(req.protocol !== 'https' && req.protocol !== 'wss') {
-        console.log("invalid protocol attempt", req.protocol);
+        console.log("invalid protocol attempt", req.protocol, req.headers);
         res.status(403).send({message: 'SSL required'});
         return;
     }
