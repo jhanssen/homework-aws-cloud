@@ -32,13 +32,19 @@ const Types = {
     Unknown: 99
 };
 
-const root = path.resolve(fs.realpathSync(__filename), '../..') + path.sep;
-//console.log(root);
-const config = jsondb.readFileSync(root + 'config.json');
-if (!config) {
-    console.log('no config');
-    process.exit();
-}
+// const root = path.resolve(fs.realpathSync(__filename), '../..') + path.sep;
+// console.log(root);
+// const config = jsondb.readFileSync(root + 'config.json');
+// if (!config) {
+//     console.log('no config');
+//     process.exit();
+// }
+
+const config = {
+    mongo: process.env.MONGOHQ_URL,
+    secret: process.env.HOMEWORK_SECRET
+};
+
 if (!config.mongo) {
     console.log('no mongo');
     process.exit();
