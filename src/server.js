@@ -197,6 +197,15 @@ app.use(session({
 }));
 app.use(passwordless.sessionSupport());
 
+app.use(function(req, res, next) {
+    if(req.protocol !== 'https') {
+        res.status(403).send({message: 'SSL required'});
+        return;
+    }
+    // allow the request to continue
+    next();
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log('listening on', port);
