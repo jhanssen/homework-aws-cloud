@@ -98,6 +98,8 @@ mongo.connect(config.mongo, (err, db) => {
                             }, function(err, message) {
                                 if(err) {
                                     console.log(err);
+                                } else {
+                                    console.log("no err, msg", message);
                                 }
                                 callback(err);
                             });
