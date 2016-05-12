@@ -198,7 +198,7 @@ app.use(session({
 app.use(passwordless.sessionSupport());
 
 app.use(function(req, res, next) {
-    if(req.protocol !== 'https') {
+    if(req.protocol !== 'https' && req.protocol !== 'wss') {
         res.status(403).send({message: 'SSL required'});
         return;
     }
