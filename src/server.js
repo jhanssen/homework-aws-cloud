@@ -19,18 +19,18 @@ const app = express();
 
 const expressWs = require('express-ws')(app);
 
-const Types = {
-    Dimmer: 0,
-    Light: 1,
-    Fan: 2,
-    Thermostat: 3,
-    Clapper: 4,
-    RGBWLed: 5,
-    Sensor: 6,
-    GarageDoor: 7,
-    Lock: 8,
-    Unknown: 99
-};
+// const Types = {
+//     Dimmer: 0,
+//     Light: 1,
+//     Fan: 2,
+//     Thermostat: 3,
+//     Clapper: 4,
+//     RGBWLed: 5,
+//     Sensor: 6,
+//     GarageDoor: 7,
+//     Lock: 8,
+//     Unknown: 99
+// };
 
 // const root = path.resolve(fs.realpathSync(__filename), '../..') + path.sep;
 // console.log(root);
@@ -530,14 +530,14 @@ app.post('/oauth/request', (req, res) => {
 
                                 for (var uuid in devs) {
                                     switch (devs[uuid].type) {
-                                    case Types.Dimmer:
+                                    case "Dimmer":
                                         appliances.push(makeDimmer(devs[uuid]));
                                         break;
-                                    case Types.Light:
-                                    case Types.Fan:
+                                    case "Light":
+                                    case "Fan":
                                         appliances.push(makeSwitch(devs[uuid]));
                                         break;
-                                    case Types.Thermostat:
+                                    case "Thermostat":
                                         appliances.push(makeThermostat(devs[uuid]));
                                         break;
                                     default:
@@ -602,11 +602,11 @@ app.post('/oauth/request', (req, res) => {
                             console.log(`turning on device ${deviceId} with token ${token}`);
 
                             switch (dev.type) {
-                            case Types.Dimmer:
+                            case "Dimmer":
                                 setDeviceValue(user, dev, "level", dev.values.level.values.on);
                                 break;
-                            case Types.Light:
-                            case Types.Fan:
+                            case "Light":
+                            case "Fan":
                                 setDeviceValue(user, dev, "value", 1);
                                 break;
                             }
@@ -618,11 +618,11 @@ app.post('/oauth/request', (req, res) => {
                             console.log(`turning off device ${deviceId} with token ${token}`);
 
                             switch (dev.type) {
-                            case Types.Dimmer:
+                            case "Dimmer":
                                 setDeviceValue(user, dev, "level", dev.values.level.values.off);
                                 break;
-                            case Types.Light:
-                            case Types.Fan:
+                            case "Light":
+                            case "Fan":
                                 setDeviceValue(user, dev, "value", 0);
                                 break;
                             }
@@ -634,7 +634,7 @@ app.post('/oauth/request', (req, res) => {
                             let perc = event.percentageState.value;
 
                             switch (dev.type) {
-                            case Types.Dimmer:
+                            case "Dimmer":
                                 setDeviceValue(user, dev, "level", perc);
                                 break;
                             }
@@ -646,7 +646,7 @@ app.post('/oauth/request', (req, res) => {
                             let delta = event.deltaPercentage.value;
 
                             switch (dev.type) {
-                            case Types.Dimmer:
+                            case "Dimmer":
                                 addDeviceValue(user, dev, "level", delta);
                                 break;
                             }
@@ -658,7 +658,7 @@ app.post('/oauth/request', (req, res) => {
                             let delta = event.deltaPercentage.value;
 
                             switch (dev.type) {
-                            case Types.Dimmer:
+                            case "Dimmer":
                                 addDeviceValue(user, dev, "level", -delta);
                                 break;
                             }
