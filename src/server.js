@@ -154,6 +154,11 @@ function sendToUser(user, req)
     return Promise.reject({ data: `User ${user} not found` });
 }
 
+function sendData(ws, req)
+{
+    ws.send(JSON.stringify(req));
+}
+
 function getDevices(user, cb)
 {
     sendToUser(user, { type: "devices" }).then((hwresponse) => {
@@ -1025,6 +1030,62 @@ app.ws('/user/websocket', (ws, request) => {
         return p;
     };
 
+    state.saveFile = function(json) {
+        let fn = json.fileName;
+        let cid = json.cid;
+        if (!fn || cid === undefined || !json.data) {
+            sendData(ws, { type: "error", error: true, msg: "Invalid saveFile request" });
+            return;
+        }
+        let sha256 = crypto.createHmac('sha256', JSON.stringify(json.data)).digest('hex');
+        mongodb.collection("hwfiles").findOne({ user: this.user, fileName: fn, sha256: sha256 }, (err, doc) => {
+            if (doc) {
+                sendData(ws, { cid: cid, error: false, msg: "File already exists" });
+                return;
+            }
+            mongodb.collection("hwfiles").insert({ user: this.user, fileName: fn, sha256: sha256, data: json.data, date: new Date() },
+                                                 (err, result) => {
+                                                     if (err) {
+                                                         sendData(ws, { cid: cid, error: true, msg: "Couldn't save file" });
+                                                     } else {
+                                                         sendData(ws, { cid: cid, error: false, msg: "File saved" });
+                                                     }
+                                                 });
+        });
+    };
+
+    state.loadFile = function(json) {
+        let fn = json.fileName;
+        let cid = json.cid;
+        if (!fn || cid === undefined) {
+            sendData(ws, { type: "error", error: true, msg: "Invalid loadFile request" });
+            return;
+        }
+        let sha256 = json.sha256;
+        if (!sha256) {
+            let results = [];
+            let fileCursor = mongodb.collection("hwfiles").find({ user: this.user, fileName: fn });
+            fileCursor.each((err, doc) => {
+                if (err) {
+                    return;
+                }
+                if (doc) {
+                    results.push({ sha256: doc.sha256, date: doc.date });
+                } else {
+                    sendData(ws, { cid: cid, error: false, msg: results });
+                }
+            });
+        } else {
+            mongodb.collection("hwfiles").findOne({ user: this.user, fileName: fn, sha256: sha256 }, (err, doc) => {
+                if (err || !doc) {
+                    sendData(ws, { cid: cid, error: true, msg: "No such file" });
+                } else {
+                    sendData(ws, { cid: cid, error: false, msg: doc.data });
+                }
+            });
+        }
+    };
+
     ws.on('close', () => {
         console.log("ws closed");
         if (!state.user)
@@ -1067,10 +1128,20 @@ app.ws('/user/websocket', (ws, request) => {
                 } else {
                     console.error(`got message id ${json.id} but not in pending`);
                 }
-            } else if ("type" in json && json.type == "ready") {
-                wsUser[state.user].ready = true;
-                sendToAll(state.user, { type: "ready", ready: true });
-                getDevices(state.user);
+            } else if ("type" in json) {
+                switch (json.type) {
+                case "ready":
+                    wsUser[state.user].ready = true;
+                    sendToAll(state.user, { type: "ready", ready: true });
+                    getDevices(state.user);
+                    break;
+                case "saveFile":
+                    state.saveFile(json);
+                    break;
+                case "loadFile":
+                    state.loadFile(json);
+                    break;
+                }
             } else {
                 //console.error("got message with no id:", JSON.stringify(json));
                 sendToAll(state.user, json);
