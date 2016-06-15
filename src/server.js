@@ -1040,15 +1040,15 @@ app.ws('/user/websocket', (ws, request) => {
         let sha256 = crypto.createHmac('sha256', JSON.stringify(json.data)).digest('hex');
         mongodb.collection("hwfiles").findOne({ user: this.user, fileName: fn, sha256: sha256 }, (err, doc) => {
             if (doc) {
-                sendData(ws, { cid: cid, error: false, msg: "File already exists" });
+                sendData(ws, { cid: cid, error: false, msg: `File already exists: ${fn}` });
                 return;
             }
             mongodb.collection("hwfiles").insert({ user: this.user, fileName: fn, sha256: sha256, data: json.data, date: new Date() },
                                                  (err, result) => {
                                                      if (err) {
-                                                         sendData(ws, { cid: cid, error: true, msg: "Couldn't save file" });
+                                                         sendData(ws, { cid: cid, error: true, msg: `Couldn't save file: ${fn}` });
                                                      } else {
-                                                         sendData(ws, { cid: cid, error: false, msg: "File saved" });
+                                                         sendData(ws, { cid: cid, error: false, msg: `File saved: ${fn}` });
                                                      }
                                                  });
         });
@@ -1078,7 +1078,7 @@ app.ws('/user/websocket', (ws, request) => {
         } else {
             mongodb.collection("hwfiles").findOne({ user: this.user, fileName: fn, sha256: sha256 }, (err, doc) => {
                 if (err || !doc) {
-                    sendData(ws, { cid: cid, error: true, msg: "No such file" });
+                    sendData(ws, { cid: cid, error: true, msg: `No such file: ${fn}` });
                 } else {
                     sendData(ws, { cid: cid, error: false, msg: doc.data });
                 }
