@@ -1174,3 +1174,21 @@ app.ws('/user/websocket', (ws, request) => {
 app.get('/privacy', (request, response) => {
     response.send('We do privacy!');
 });
+
+app.post('/ifttt/request', (req, res) => {
+    // look up the key
+    if (!req.body.email) {
+        console.error("No email");
+        return;
+    }
+
+    mongodb.collection("hwusers").findOne({ email: req.body.email }, (err, doc) => {
+        if (!err && req.body.key == doc.ifttt) {
+            sendToUser(doc.email, req.body);
+            res.send({status: "ok"});
+        } else {
+            res.status(403).send({status: "error"});
+        }
+    });
+});
+
