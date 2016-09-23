@@ -1184,7 +1184,7 @@ app.post('/ifttt/request', (req, res) => {
 
     mongodb.collection("hwusers").findOne({ email: req.body.email }, (err, doc) => {
         if (!err && req.body.key == doc.ifttt) {
-            sendToUser(doc.email, req.body);
+            sendToUser(doc.email, { type: "ifttt", ifttt: req.body } );
             res.send({status: "ok"});
         } else {
             res.status(403).send({status: "error"});
