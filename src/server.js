@@ -161,42 +161,52 @@ function sendData(ws, req)
 
 function getDevices(user, cb)
 {
+    let devs = Object.create(null);
+    let scenes = Object.create(null);
+    var pendingValuesRequests = -1;
+    var pendingScenes = true;
+    function checkFinish()
+    {
+        if (!pendingValuesRequests && !pendingScenes) {
+            wsUser[user].devices = devs;
+            wsUser[user].scenes = scenes;
+            if (cb)
+                cb(devs, scenes);
+        }
+    }
+
+    sendToUser(user, { type: "scenes" }).then((hwresponse) => {
+        hwresponse = hwresponse.data;
+        for (var i = 0; i < hwresponse.length; ++i) {
+            scenes[hwresponse[i].name] = hwresponse[i].values;
+        }
+        pendingScenes = false;
+        checkFinish();
+    });
+
     sendToUser(user, { type: "devices" }).then((hwresponse) => {
         hwresponse = hwresponse.data;
-        let devs = Object.create(null);
-        let scenes = [];
-        var pending = 0;
-
-        function checkFinish ()
-        {
-            if (!pending) {
-                wsUser[user].devices = devs;
-                wsUser[user].scenes = scenes;
-                if (cb)
-                    cb(devs, scenes);
-            }
-        }
         for (var i = 0; i < hwresponse.length; ++i) {
-            if (hwresponse[i].type == "Scene") {
-                scenes.push(hwresponse[i].name);
-            } else {
-                let uuid = hwresponse[i].uuid;
+            let uuid = hwresponse[i].uuid;
 
-                devs[uuid] = hwresponse[i];
-                devs[uuid].values = Object.create(null);
-                ++pending;
-                sendToUser(user, { type: "values", devuuid: uuid }).then(function(hwresponse) {
-                    hwresponse = hwresponse.data;
-                    if (hwresponse instanceof Array) {
-                        for (var i = 0; i < hwresponse.length; ++i) {
-                            var val = hwresponse[i];
-                            devs[uuid].values[val.name] = val;
-                        }
-                    }
-                    --pending;
-                    checkFinish();
-                });
+            devs[uuid] = hwresponse[i];
+            devs[uuid].values = Object.create(null);
+            if (pendingValuesRequests < 0) {
+                pendingValuesRequests = 1;
+            } else {
+                ++pendingValuesRequests;
             }
+            sendToUser(user, { type: "values", devuuid: uuid }).then(function(hwresponse) {
+                hwresponse = hwresponse.data;
+                if (hwresponse instanceof Array) {
+                    for (var i = 0; i < hwresponse.length; ++i) {
+                        var val = hwresponse[i];
+                        devs[uuid].values[val.name] = val;
+                    }
+                }
+                --pendingValuesRequests;
+                checkFinish();
+            });
         }
         checkFinish();
     }).catch((err) => {
