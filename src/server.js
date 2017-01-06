@@ -107,6 +107,8 @@ mongo.connect(config.mongo, (err, db) => {
                 }
             }
         });
+    } else {
+        console.log("error connecting to db", err);
     }
 });
 
