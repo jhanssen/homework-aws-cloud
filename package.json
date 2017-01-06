@@ -16,7 +16,7 @@
     "express-session": "^1.13.0",
     "express-ws": "^1.0.0",
     "jsonfile": "^2.2.3",
-    "mongodb": "^2.1.16",
+    "mongodb": "~2.1.16",
     "mongoose": "^4.4.12",
     "node-oauth2-server": "~2.4.0",
     "node-uuid": "^1.4.7",
