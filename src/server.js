@@ -482,7 +482,8 @@ function makeScene(name)
 {
     return {
         actions: [
-            "turnOn"
+            "turnOn",
+            "turnOff"
         ],
         additionalApplianceDetails: {},
         applianceId: "scene:" + name,
