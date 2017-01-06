@@ -164,31 +164,44 @@ function getDevices(user, cb)
     sendToUser(user, { type: "devices" }).then((hwresponse) => {
         hwresponse = hwresponse.data;
         let devs = Object.create(null);
-        let rem = hwresponse.length;
+        let scenes = [];
+        var pending = 0;
 
-        for (var i = 0; i < hwresponse.length; ++i) {
-            let uuid = hwresponse[i].uuid;
-
-            devs[uuid] = hwresponse[i];
-            devs[uuid].values = Object.create(null);
-            sendToUser(user, { type: "values", devuuid: uuid }).then(function(hwresponse) {
-                hwresponse = hwresponse.data;
-                if (hwresponse instanceof Array) {
-                    for (var i = 0; i < hwresponse.length; ++i) {
-                        var val = hwresponse[i];
-                        devs[uuid].values[val.name] = val;
-                    }
-                }
-                if (!--rem) {
-                    wsUser[user].devices = devs;
-                    if (cb)
-                        cb(devs);
-                }
-            });
+        function checkFinish ()
+        {
+            if (!pending) {
+                wsUser[user].devices = devs;
+                wsUser[user].scenes = scenes;
+                if (cb)
+                    cb(devs, scenes);
+            }
         }
+        for (var i = 0; i < hwresponse.length; ++i) {
+            if (hwresponse[i].type == "Scene") {
+                scenes.push(hwresponse[i].name);
+            } else {
+                let uuid = hwresponse[i].uuid;
+
+                devs[uuid] = hwresponse[i];
+                devs[uuid].values = Object.create(null);
+                ++pending;
+                sendToUser(user, { type: "values", devuuid: uuid }).then(function(hwresponse) {
+                    hwresponse = hwresponse.data;
+                    if (hwresponse instanceof Array) {
+                        for (var i = 0; i < hwresponse.length; ++i) {
+                            var val = hwresponse[i];
+                            devs[uuid].values[val.name] = val;
+                        }
+                    }
+                    --pending;
+                    checkFinish();
+                });
+            }
+        }
+        checkFinish();
     }).catch((err) => {
-        console.error("sendtouser exception", err);
-        cb(null);
+        console.error("getDevices exception", err);
+        cb(null, null);
     });
 }
 
@@ -437,7 +450,7 @@ function makeDimmer(dev)
 
 function makeSwitch(dev)
 {
-    var dimmer = {
+    return {
         actions: [
             "turnOn",
             "turnOff"
@@ -451,8 +464,23 @@ function makeSwitch(dev)
         modelName: "HomeworkSwitch",
         version: "1.0"
     };
+}
 
-    return dimmer;
+function makeScene(name)
+{
+    return {
+        actions: [
+            "turnOn"
+        ],
+        additionalApplianceDetails: {},
+        applianceId: "scene:" + name,
+        friendlyDescription: name,
+        friendlyName: name,
+        isReachable: true,
+        manufacturerName: "Homework",
+        modelName: "HomeworkScene",
+        version: "1.0"
+    };
 }
 
 function makeThermostat(dev)
@@ -478,6 +506,11 @@ function makeThermostat(dev)
 function setDeviceValue(user, dev, name, value)
 {
     sendToUser(user, { type: "setValue", devuuid: dev.uuid, valname: name, value: value });
+}
+
+function triggerScene(user, name)
+{
+    sendToUser(user, { type: "triggerScene", name: name });
 }
 
 function addDeviceValue(user, dev, name, delta)
@@ -530,7 +563,7 @@ app.post('/oauth/request', (req, res) => {
 
                     const discovery = {
                         "DiscoverAppliancesRequest": (response) => {
-                            getDevices(user, (devs) => {
+                            getDevices(user, (devs, scenes) => {
                                 let appliances = [];
 
                                 for (var uuid in devs) {
@@ -550,6 +583,8 @@ app.post('/oauth/request', (req, res) => {
                                         break;
                                     }
                                 }
+                                if (scenes)
+                                    scenes.forEach((name) => { appliances.push(makeScene(name)); });
 
                                 if (appliances.length > 0) {
                                     response.payload = {
@@ -588,13 +623,17 @@ app.post('/oauth/request', (req, res) => {
                 if (doc && doc.accessToken == token) {
                     const user = doc.userId;
 
-
                     const deviceId = event.payload.appliance.applianceId;
                     const messageId = event.header.messageId;
 
                     var dev;
-                    if (user in wsUser && wsUser[user].devices && deviceId in wsUser[user].devices)
-                        dev = wsUser[user].devices[deviceId];
+                    if (deviceId && user in wsUser) {
+                        if (wsUser[user].devices && deviceId in wsUser[user].devices) {
+                            dev = wsUser[user].devices[deviceId];
+                        } else if (/^scene:/.exec(deviceId) && wsUser[user].scenes && wsUser[user].scenes.indexOf(deviceId) != -1) {
+                            dev = { type: "Scene", name: deviceId };
+                        }
+                    }
                     if (!dev) {
                         console.log(`no devices for ${user}`);
                         return;
@@ -613,6 +652,9 @@ app.post('/oauth/request', (req, res) => {
                             case "Light":
                             case "Fan":
                                 setDeviceValue(user, dev, "value", 1);
+                                break;
+                            case "Scene":
+                                triggerScene(user, dev.name);
                                 break;
                             }
                             return true;
