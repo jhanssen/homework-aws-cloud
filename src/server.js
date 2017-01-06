@@ -575,26 +575,30 @@ app.post('/oauth/request', (req, res) => {
                         "DiscoverAppliancesRequest": (response) => {
                             getDevices(user, (devs, scenes) => {
                                 let appliances = [];
-
-                                for (var uuid in devs) {
-                                    switch (devs[uuid].type) {
-                                    case "Dimmer":
-                                        appliances.push(makeDimmer(devs[uuid]));
-                                        break;
-                                    case "Light":
-                                    case "Fan":
-                                        appliances.push(makeSwitch(devs[uuid]));
-                                        break;
-                                    case "Thermostat":
-                                        appliances.push(makeThermostat(devs[uuid]));
-                                        break;
-                                    default:
-                                        console.error(`unhandled device type ${uuid} ${devs[uuid].type}`);
-                                        break;
+                                if (devs) {
+                                    for (var uuid in devs) {
+                                        switch (devs[uuid].type) {
+                                        case "Dimmer":
+                                            appliances.push(makeDimmer(devs[uuid]));
+                                            break;
+                                        case "Light":
+                                        case "Fan":
+                                            appliances.push(makeSwitch(devs[uuid]));
+                                            break;
+                                        case "Thermostat":
+                                            appliances.push(makeThermostat(devs[uuid]));
+                                            break;
+                                        default:
+                                            console.error(`unhandled device type ${uuid} ${devs[uuid].type}`);
+                                            break;
+                                        }
                                     }
                                 }
-                                if (scenes)
-                                    scenes.forEach((name) => { appliances.push(makeScene(name)); });
+                                if (scenes) {
+                                    for (var name in scenes) {
+                                        appliances.push(makeScene(name));
+                                    }
+                                }
 
                                 if (appliances.length > 0) {
                                     response.payload = {
