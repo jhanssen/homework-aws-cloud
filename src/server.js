@@ -484,7 +484,7 @@ function makeScene(name)
         ],
         additionalApplianceDetails: {},
         applianceId: "scene:" + name,
-        friendlyDescription: `${dev.name} scene connected by via Homework`,
+        friendlyDescription: `${name} scene connected by via Homework`,
         friendlyName: name,
         isReachable: true,
         manufacturerName: "Homework",
