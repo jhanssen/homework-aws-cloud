@@ -21,6 +21,6 @@
     "node-oauth2-server": "~2.4.0",
     "node-uuid": "^1.4.7",
     "passwordless": "^1.1.1",
-    "passwordless-mongostore": "^0.1.3"
+    "passwordless-mongostore": "0.1.3"
   }
 }
