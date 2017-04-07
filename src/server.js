@@ -17,7 +17,7 @@ const passwordless = require('passwordless');
 const MongoStore = require('passwordless-mongostore');
 const uuid = require('node-uuid');
 const app = express();
-
+const https = require('https');
 const expressWs = require('express-ws')(app);
 
 // const Types = {
@@ -239,9 +239,20 @@ app.use(function(req, res, next) {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-    console.log('listening on', port);
-});
+if (process.env.KEY_FILE && process.env.CERT_FILE) {
+    const opts = {
+        key: fs.readFileSync(process.env.KEY_FILE),
+        cert: fs.readFileSync(process.env.CERT_FILE)
+    };
+
+    https.createServer(opts, app).listen(port, () => {
+        console.log('listening securely on', port);
+    });
+} else {
+    app.listen(port, () => {
+        console.log('listening on', port);
+    });
+}
 
 app.get('/', function (req, res) {
     if (req.session.passwordless) {
