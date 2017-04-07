@@ -5,7 +5,7 @@ cd $DIR/../src
 while true; do
     RESTART=1
     ./server.js 2>&1 | tee log
-    if [ ! "$?" -eq 0 ]; then
+    if [ ! "${PIPESTATUS[0]}" -eq 0 ]; then
         /bin/mv log crash.log.`date +%s`
         RESTART=
     fi
