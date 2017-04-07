@@ -48,11 +48,11 @@ const config = {
 
 if (!config.mongo) {
     console.log('no mongo');
-    process.exit();
+    process.exit(1);
 }
 if (!config.secret) {
     console.log('no secret');
-    process.exit();
+    process.exit(1);
 }
 
 passwordless.init(new MongoStore(config.mongo));
