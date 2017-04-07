@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*global require,process,__filename,setTimeout*/
 
 "use strict";
