@@ -242,7 +242,8 @@ const port = process.env.HOMEWORK_PORT || 3000;
 if (process.env.HOMEWORK_KEY_FILE && process.env.HOMEWORK_CERT_FILE) {
     const opts = {
         key: fs.readFileSync(process.env.HOMEWORK_KEY_FILE),
-        cert: fs.readFileSync(process.env.HOMEWORK_CERT_FILE)
+        cert: fs.readFileSync(process.env.HOMEWORK_CERT_FILE),
+        ca: fs.readFileSync(process.env.HOMEWORK_INT_CERT_FILE)
     };
 
     https.createServer(opts, app).listen(port, () => {
