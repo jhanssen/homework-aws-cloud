@@ -42,7 +42,7 @@ const expressWs = require('express-ws')(app);
 // }
 
 const config = {
-    mongo: process.env.MONGOHQ_URL,
+    mongo: process.env.HOMEWORK_MONGOHQ_URL,
     secret: process.env.HOMEWORK_SECRET
 };
 
@@ -238,11 +238,11 @@ app.use(function(req, res, next) {
     next();
 });
 
-const port = process.env.PORT || 3000;
-if (process.env.KEY_FILE && process.env.CERT_FILE) {
+const port = process.env.HOMEWORK_PORT || 3000;
+if (process.env.HOMEWORK_KEY_FILE && process.env.HOMEWORK_CERT_FILE) {
     const opts = {
-        key: fs.readFileSync(process.env.KEY_FILE),
-        cert: fs.readFileSync(process.env.CERT_FILE)
+        key: fs.readFileSync(process.env.HOMEWORK_KEY_FILE),
+        cert: fs.readFileSync(process.env.HOMEWORK_CERT_FILE)
     };
 
     https.createServer(opts, app).listen(port, () => {
