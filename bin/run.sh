@@ -2,7 +2,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 [ -e /etc/homework/homework.config ] && . /etc/homework/homework.config
-for i in `env | grep ^HOMEWORK`; do
+for i in `set | grep ^HOMEWORK`; do
     export $i
 done
 
