@@ -1,6 +1,7 @@
 #!/bin/bash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+[ -e /etc/homework/homework.config ] && . /etc/homework/homework.config
 cd $DIR/../src
 while true; do
     RESTART=1
