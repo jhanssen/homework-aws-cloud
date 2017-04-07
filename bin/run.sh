@@ -4,7 +4,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DIR/../src
 while true; do
     RESTART=1
-    ./server.js
+    ./server.js 2>&1 | tee log
     if [ ! "$?" -eq 0 ]; then
         /bin/mv log crash.log.`date +%s`
         RESTART=
