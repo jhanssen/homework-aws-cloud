@@ -18,7 +18,7 @@ const MongoStore = require('passwordless-mongostore');
 const uuid = require('node-uuid');
 const app = express();
 const https = require('https');
-const expressWs = require('express-ws')(app);
+const expressWs = require('express-ws');
 
 // const Types = {
 //     Dimmer: 0,
@@ -246,13 +246,16 @@ if (process.env.HOMEWORK_KEY_FILE && process.env.HOMEWORK_CERT_FILE) {
         ca: fs.readFileSync(process.env.HOMEWORK_INT_CERT_FILE)
     };
 
-    https.createServer(opts, app).listen(port, () => {
+    var server = https.createServer(opts, app);
+    server.listen(port, () => {
         console.log('listening securely on', port);
     });
+    expressWs(app, server);
 } else {
     app.listen(port, () => {
         console.log('listening on', port);
     });
+    expressWs(app);
 }
 
 app.get('/', function (req, res) {
