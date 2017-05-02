@@ -1272,7 +1272,7 @@ app.post('/deploy', (req, res) => {
     var calculatedSignature;
     var payload = req.body;
 
-    console.log("got deploy hook", req.body, req.headers);
+    console.log("got deploy hook", process.env.HOMEWORK_GITHUB_DEPLOY_SECRET, req.body, req.headers);
     hmac = crypto.createHmac('sha1', process.env.HOMEWORK_GITHUB_DEPLOY_SECRET);
     hmac.update(JSON.stringify(payload));
     calculatedSignature = 'sha1=' + hmac.digest('hex');
@@ -1280,7 +1280,7 @@ app.post('/deploy', (req, res) => {
     if (req.headers['x-hub-signature'] === calculatedSignature) {
         console.log("Good signature");
         res.sendStatus(200);
-        if (argv.deploy && req.body && req.body.ref == 'refs/heads/deploy') {
+        if (req.body && req.body.ref == 'refs/heads/deploy') {
             fs.writeFileSync('.deploy.pull', undefined);
             setTimeout(() => { process.exit(0); }, 1000);
         }
